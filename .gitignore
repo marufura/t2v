@@ -1,0 +1,14 @@
+src/music/
+src/cache/
+
+src/open.ps1
+src/download_mp3.bat
+activation.ps1
+download.ico
+t2v.ico
+
+.idea/
+venv/
+
+config.ini
+archive.py

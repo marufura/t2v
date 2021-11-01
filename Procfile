@@ -1,0 +1,1 @@
+t2v: python src/ReadTextInDiscord.py
