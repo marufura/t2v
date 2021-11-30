@@ -1,5 +1,6 @@
 import os
 import glob
+import json
 import configparser
 import errno
 
@@ -20,6 +21,7 @@ class ReadTextInDiscord(commands.Cog):
         super().__init__()
         self.bot = bot
         self.t2v = t2v
+        # mp3ファイルの再生音量と生成される読み上げ音声ファイルとの音量の差を調整: free change volume -> config.ini に入れてもいいかも
         self.t2v.volume(200)
 
     @commands.command()
@@ -67,7 +69,7 @@ class ReadTextInDiscord(commands.Cog):
 
     @commands.command()
     async def music(self, ctx, arg):
-        """mp3ファイルを再生します。再生中は読み上げ機能が無効になります。[t2v.bye]で疑似的に再生終了できます。[t2v.music list]でローカル保存されているmp3ファイルを参照できます。"""
+        """mp3ファイルを再生します。[t2v.music list]でローカル保存されているmp3ファイルを参照できます。"""
         music_path = os.path.dirname(__file__) + '/music'
         os.makedirs(music_path, exist_ok=True)
         sound_path = music_path + '/' + arg + '.mp3'
@@ -83,7 +85,7 @@ class ReadTextInDiscord(commands.Cog):
             return
 
         if not os.path.exists(sound_path):
-            await ctx.send("指定されたファイルが存在しません。[t2v.music list]で確認")
+            await ctx.send("指定されたファイルが存在しません。\nTips: [t2v.music list]で確認")
             return
 
         mp3 = generate_mp3_for_discord(sound_path)
@@ -92,19 +94,21 @@ class ReadTextInDiscord(commands.Cog):
 
 def main():
     # load config.ini
-    config_ini = configparser.ConfigParser()
-    config_ini_path = '../config.ini'
-    if not os.path.exists(config_ini_path):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), config_ini_path)
-    config_ini.read(config_ini_path, encoding='utf-8')
+    config = configparser.ConfigParser()
+    config_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../config.ini'))
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), config_path)
+    config.read(config_path, encoding='utf-8')
 
-    discord_bot_token = config_ini['Discord']['TOKEN']
-    greeting_channel = int(config_ini['Discord']['CHANNEL_ID'])
-    voiceText_api_key = config_ini['VoiceText Web API']['API_KEY']
-    voiceText_api_endpoint = config_ini['VoiceText Web API']['API_ENDPOINT']
+    discord_bot_token = config['Discord']['TOKEN']
+    greeting_channel = int(config['Discord']['CHANNEL_ID'])
+    voiceText_api_key = config['VoiceText Web API']['API_KEY']
+    voiceText_api_endpoint = config['VoiceText Web API']['API_ENDPOINT']
+    user_dictionary = json.loads(config['General']['USER_DICTIONARY'])
 
-    # Text2Voice
-    t2v = Text2Voice.T2V(api_key=voiceText_api_key, api_endpoint=voiceText_api_endpoint)
+    # Text2Voice Setting
+    t2v = Text2Voice.T2V(api_key=voiceText_api_key, api_endpoint=voiceText_api_endpoint,
+                         user_dictionary=user_dictionary)
     command_prefix = "t2v."
     bot = commands.Bot(command_prefix=command_prefix)
     bot.add_cog(ReadTextInDiscord(bot=bot, t2v=t2v))
@@ -117,7 +121,7 @@ def main():
                               description='コマンド一覧は \'t2v.help\' で確認できます',
                               color=discord.Colour.blue())
         embed.set_thumbnail(
-            url="https://4.bp.blogspot.com/-15Zk1xUSJsk/WtRzFXf_X7I/AAAAAAABLjs/Y8EwsDjig5ceATVAEKNm-FbqsfRqyXtLQCLcBGAs/s800/kakuseiki_man_angry.png")
+            url="https://3.bp.blogspot.com/-krBLqWYiIc0/WvQG6NYEpQI/AAAAAAABL2s/eJm2k3v5q1Iqd3wlndsiJG1XzL7jGZsAgCLcBGAs/s800/animal_music_band_singer.png")
         await channel.send(embed=embed)
 
     @bot.event
@@ -126,9 +130,10 @@ def main():
         if message.author.bot:
             return
 
-        # コマンド送信時以外
+        # コマンド送信時
         if message.content.startswith(command_prefix):
             pass
+        # 読み上げた対象でないチャンネルでは無視する
         elif message.channel.id != greeting_channel:
             pass
         else:
